@@ -1,0 +1,488 @@
+---
+title: "Covid-19 Report in Indonesia with Visualization Leaflet Map"
+author: "Gasha Sarwono"
+output: 
+  html_document:
+    theme: flatly
+    higlight: zenburn
+    toc: true
+    toc_float:
+      collapsed: true
+    df_print: paged
+---
+
+![](D:\Data Scientist\corona.jpg)
+
+## 1. Background
+
+Here is data Covid-19 cases in Indonesia, with this data I will make visualization with interactive map to show detail about Covid-19 like confirmed cases, recovered cases and deaths cases for each province.
+
+**For source data Covid-19 I get from website BNPB Indonesia :**
+
+https://bnpb-inacovid19.hub.arcgis.com/datasets/data-harian-kasus-per-provinsi-covid-19-indonesia
+
+**For source data map I get from website GADM :**
+
+https://gadm.org/download_country_v2.html
+
+## 2. Set Up
+
+### 2.1 Activated Library
+
+```{r message=FALSE, warning=FALSE}
+#For wrangling
+library(dplyr)
+
+#For plot
+library(tidyverse)
+
+#For interactive plot
+library(leaflet)
+
+#For label on interactive plot
+library(glue)
+library(scales)
+
+#For visualization map
+library(sf)
+
+library(ggplot2)
+```
+
+### 2.2 Import Data BNPB
+
+```{r}
+covid <- read.csv("Data_Harian_Kasus_per_Provinsi_COVID-19_Indonesia.csv", sep=",", na.strings = c("N/A"))
+covid
+```
+
+### 2.3 Import Data Map GADM
+
+```{r}
+map <- read_rds("gadm36_IDN_1_sf.rds")
+data.frame(map)
+```
+
+## 3. Data Preparation
+
+### 3.1 Select Map
+
+Select Indonesian map with name province
+
+```{r}
+#Make map from data
+mapindo <- map %>% 
+  select(NAME_1)
+plot(mapindo)
+```
+
+### 3.2 Join Data
+
+**Joining data BNPB with data Map GADM**
+
+Cause City Jakarta and Yogyakarta have 2 type name, it must change with just 1 city name. After that, left join data with column "NAME_1" and "Provinsi" as a primary key.
+
+```{r}
+# Join with province name as primary key
+datajoin <- map %>% 
+  mutate(NAME_1= case_when(NAME_1 == "Jakarta Raya" ~ "DKI Jakarta",
+                            NAME_1 == "Yogyakarta" ~ "Daerah Istimewa Yogyakarta",
+                            TRUE ~ NAME_1)) %>% 
+  left_join(covid, by = c("NAME_1" = "Provinsi")) %>%
+  data.frame()
+
+datajoin
+```
+
+## 4. Structure Leaflet Map
+
+### 4.1 Classification
+
+Classification Island based on Province
+
+**Jawa**
+
+```{r}
+datajoinJawa <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("DKI Jakarta","Jawa Barat","Jawa Tengah","Daerah Istimewa Yogyakarta","Jawa Timur","Banten"))
+datajoinJawa
+```
+
+**Sumatera**
+
+```{r}
+datajoinSumatera <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("Aceh","Sumatera Utara","Sumatera Barat","Riau","Jambi","Sumatera Selatan","Bengkulu","Bangka Belitung","Lampung","Kepulauan Riau"))
+datajoinSumatera
+```
+
+**Kepulauan Nusa Tenggara**
+
+```{r}
+datajoinNusaTenggara <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("Bali","Nusa Tenggara Barat","Nusa Tenggara Timur"))
+datajoinNusaTenggara
+```
+
+**Kalimantan**
+
+```{r}
+datajoinKalimantan <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("Kalimantan Barat","Kalimantan Tengah","Kalimantan Selatan","Kalimantan Timur","Kalimantan Utara"))
+datajoinKalimantan
+```
+
+**Sulawesi**
+
+```{r}
+datajoinSulawesi <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("Sulawesi Utara","Sulawesi Tengah","Sulawesi Selatan","Sulawesi Tenggara","Gorontalo","Sulawesi Barat"))
+datajoinSulawesi
+```
+
+**Maluku**
+
+```{r}
+datajoinMaluku <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("Maluku","Maluku Utara"))
+datajoinMaluku
+```
+
+**Papua**
+
+```{r}
+datajoinPapua <- 
+  datajoin %>% 
+  filter(NAME_1 %in% c("Papua","Papua Barat"))
+datajoinPapua
+```
+
+### 4.2 Colors
+
+Make color on map
+
+**Jawa**
+
+```{r}
+palJawa <- colorNumeric(palette = "Reds", domain = log(datajoinJawa$Kasus_Posi))
+```
+
+**Sumatera**
+
+```{r}
+palSumatera <- colorNumeric(palette = "Reds", domain = log(datajoinSumatera$Kasus_Posi))
+```
+
+**Kepulauan Nusa Tenggara**
+
+```{r}
+palNusaTenggara <- colorNumeric(palette = "Reds", domain = log(datajoinNusaTenggara$Kasus_Posi))
+```
+
+**Kalimantan**
+
+```{r}
+palKalimantan <- colorNumeric(palette = "Reds", domain = log(datajoinKalimantan$Kasus_Posi))
+```
+
+**Sulawesi**
+
+```{r}
+palSulawesi <- colorNumeric(palette = "Reds", domain = log(datajoinSulawesi$Kasus_Posi))
+```
+
+**Maluku**
+
+```{r}
+palMaluku <- colorNumeric(palette = "Reds", domain = log(datajoinMaluku$Kasus_Posi))
+```
+
+**Papua**
+
+```{r}
+palPapua <- colorNumeric(palette = "Reds", domain = log(datajoinPapua$Kasus_Posi))
+```
+
+### 4.3 Labels
+
+Make label for information on  map
+
+**Jawa**
+
+```{r}
+labels_mapJawa <- 
+  glue("<b>{datajoinJawa$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinJawa$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinJawa$Kasus_Semb)}<br>
+       Death Cases : {datajoinJawa$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+**Sumatera**
+
+```{r}
+labels_mapSumatera <- 
+  glue("<b>{datajoinSumatera$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinSumatera$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinSumatera$Kasus_Semb)}<br>
+       Death Cases : {datajoinSumatera$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+**Kepulauan Nusa Tenggara**
+
+```{r}
+labels_mapNusaTenggara <- 
+  glue("<b>{datajoinNusaTenggara$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinNusaTenggara$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinNusaTenggara$Kasus_Semb)}<br>
+       Death Cases : {datajoinNusaTenggara$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+**Kalimantan**
+
+```{r}
+labels_mapKalimantan <- 
+  glue("<b>{datajoinKalimantan$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinKalimantan$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinKalimantan$Kasus_Semb)}<br>
+       Death Cases : {datajoinKalimantan$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+**Sulawesi**
+
+```{r}
+labels_mapSulawesi <- 
+  glue("<b>{datajoinSulawesi$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinSulawesi$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinSulawesi$Kasus_Semb)}<br>
+       Death Cases : {datajoinSulawesi$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+**Maluku**
+
+```{r}
+labels_mapMaluku<- 
+  glue("<b>{datajoinMaluku$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinMaluku$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinMaluku$Kasus_Semb)}<br>
+       Death Cases : {datajoinMaluku$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+**Papua**
+
+```{r}
+labels_mapPapua<- 
+  glue("<b>{datajoinPapua$NAME_1}</b><br>
+       Positive Cases : {comma(datajoinPapua$Kasus_Posi)}<br>
+       Recover Cases : {comma(datajoinPapua$Kasus_Semb)}<br>
+       Death Cases : {datajoinPapua$Kasus_Meni}") %>% 
+  lapply(htmltools::HTML)
+```
+
+## 5. Visualization Leaflet Map
+
+### 5.1 Jawa Island
+
+```{r}
+datajoinJawa %>%
+  st_as_sf() %>%
+  leaflet() %>%
+  addProviderTiles(providers$CartoDB.DarkMatter) %>%
+  addPolygons(fillColor = ~palJawa(log(datajoinJawa$Kasus_Posi)),
+              fillOpacity = 0.8,
+              weight = 2,
+              label = labels_mapJawa,
+              color = "white",
+              highlightOptions = highlightOptions(
+                color = "blue",
+                weight = 5,
+                bringToFront = T,
+                opacity = 0.8)
+              ) %>%
+  addLegend(pal = palJawa,
+            values = log(datajoinJawa$Kasus_Posi),
+            labFormat = labelFormat(transform = function(x) round(exp(x))),
+            opacity = 1, title = "Daily Positive Cases")
+```
+
+### 5.2 Other Island
+
+I didn't display other islands, because capacity memory of this article couldn't accommodate size memory leaflet map all island. But I will show code for each island, if you want to run it.
+
+**Sumatera**
+
+```{r}
+# datajoinSumatera %>%
+#   st_as_sf() %>%
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.DarkMatter) %>%
+#   addPolygons(fillColor = ~palSumatera(log(datajoinSumatera$Kasus_Posi)),
+#               fillOpacity = 0.8,
+#               weight = 2,
+#               label = labels_mapSumatera,
+#               color = "white",
+#               highlightOptions = highlightOptions(
+#                 color = "blue",
+#                 weight = 5,
+#                 bringToFront = T,
+#                 opacity = 0.8)
+#               ) %>%
+#   addLegend(pal = palSumatera,
+#             values = log(datajoinSumatera$Kasus_Posi),
+#             labFormat = labelFormat(transform = function(x) round(exp(x))),
+#             opacity = 1, title = "Daily Positive Cases")
+```
+
+**Kepulauan Nusa Tenggara**
+
+```{r}
+# datajoinNusaTenggara %>%
+#   st_as_sf() %>%
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.DarkMatter) %>%
+#   addPolygons(fillColor = ~palNusaTenggara(log(datajoinNusaTenggara$Kasus_Posi)),
+#               fillOpacity = 0.8,
+#               weight = 2,
+#               label = labels_mapNusaTenggara,
+#               color = "white",
+#               highlightOptions = highlightOptions(
+#                 color = "blue",
+#                 weight = 5,
+#                 bringToFront = T,
+#                 opacity = 0.8)
+#               ) %>%
+#   addLegend(pal = palNusaTenggara,
+#             values = log(datajoinNusaTenggara$Kasus_Posi),
+#             labFormat = labelFormat(transform = function(x) round(exp(x))),
+#             opacity = 1, title = "Daily Positive Cases")
+```
+
+**Kalimantan**
+
+```{r}
+# datajoinKalimantan %>%
+#   st_as_sf() %>%
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.DarkMatter) %>%
+#   addPolygons(fillColor = ~palKalimantan(log(datajoinKalimantan$Kasus_Posi)),
+#               fillOpacity = 0.8,
+#               weight = 2,
+#               label = labels_mapKalimantan,
+#               color = "white",
+#               highlightOptions = highlightOptions(
+#                 color = "blue",
+#                 weight = 5,
+#                 bringToFront = T,
+#                 opacity = 0.8)
+#               ) %>%
+#   addLegend(pal = palKalimantan,
+#             values = log(datajoinKalimantan$Kasus_Posi),
+#             labFormat = labelFormat(transform = function(x) round(exp(x))),
+#             opacity = 1, title = "Daily Positive Cases")
+```
+
+**Sulawesi**
+
+```{r}
+# datajoinSulawesi %>%
+#   st_as_sf() %>%
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.DarkMatter) %>%
+#   addPolygons(fillColor = ~palSulawesi(log(datajoinSulawesi$Kasus_Posi)),
+#               fillOpacity = 0.8,
+#               weight = 2,
+#               label = labels_mapSulawesi,
+#               color = "white",
+#               highlightOptions = highlightOptions(
+#                 color = "blue",
+#                 weight = 5,
+#                 bringToFront = T,
+#                 opacity = 0.8)
+#               ) %>%
+#   addLegend(pal = palSulawesi,
+#             values = log(datajoinSulawesi$Kasus_Posi),
+#             labFormat = labelFormat(transform = function(x) round(exp(x))),
+#             opacity = 1, title = "Daily Positive Cases")
+```
+
+**Maluku**
+
+```{r}
+# datajoinMaluku %>%
+#   st_as_sf() %>%
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.DarkMatter) %>%
+#   addPolygons(fillColor = ~palMaluku(log(datajoinMaluku$Kasus_Posi)),
+#               fillOpacity = 0.8,
+#               weight = 2,
+#               label = labels_mapMaluku,
+#               color = "white",
+#               highlightOptions = highlightOptions(
+#                 color = "blue",
+#                 weight = 5,
+#                 bringToFront = T,
+#                 opacity = 0.8)
+#               ) %>%
+#   addLegend(pal = palMaluku,
+#             values = log(datajoinMaluku$Kasus_Posi),
+#             labFormat = labelFormat(transform = function(x) round(exp(x))),
+#             opacity = 1, title = "Daily Positive Cases")
+```
+
+**Papua**
+
+```{r}
+# datajoinPapua %>%
+#   st_as_sf() %>%
+#   leaflet() %>%
+#   addProviderTiles(providers$CartoDB.DarkMatter) %>%
+#   addPolygons(fillColor = ~palPapua(log(datajoinPapua$Kasus_Posi)),
+#               fillOpacity = 0.8,
+#               weight = 2,
+#               label = labels_mapPapua,
+#               color = "white",
+#               highlightOptions = highlightOptions(
+#                 color = "blue",
+#                 weight = 5,
+#                 bringToFront = T,
+#                 opacity = 0.8)
+#               ) %>%
+#   addLegend(pal = palPapua,
+#             values = log(datajoinPapua$Kasus_Posi),
+#             labFormat = labelFormat(transform = function(x) round(exp(x))),
+#             opacity = 1, title = "Daily Positive Cases")
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
